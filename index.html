@@ -3,12 +3,46 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Progress Tracker - Friday Protocol</title>
+    <title>Progress Tracker Pro - Friday Protocol</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
+    <!-- Pomodoro Timer Overlay -->
+    <div id="pomodoro-overlay" class="pomodoro-overlay hidden">
+        <div class="pomodoro-container glass-effect">
+            <div class="pomodoro-close" onclick="closePomodoroTimer()"><i class="fas fa-times"></i></div>
+            <h2>Focus Timer</h2>
+            <div class="timer-display" id="timer-display">25:00</div>
+            <div class="timer-controls">
+                <button id="timer-start" class="btn-green"><i class="fas fa-play"></i> Start</button>
+                <button id="timer-pause" class="btn-outline hidden"><i class="fas fa-pause"></i> Pause</button>
+                <button id="timer-reset" class="btn-outline"><i class="fas fa-redo"></i> Reset</button>
+            </div>
+            <div class="timer-presets">
+                <button onclick="setPomodoroTime(25)" class="preset-btn active">25 min</button>
+                <button onclick="setPomodoroTime(15)" class="preset-btn">15 min</button>
+                <button onclick="setPomodoroTime(5)" class="preset-btn">5 min</button>
+                <button onclick="setPomodoroTime(50)" class="preset-btn">50 min</button>
+            </div>
+            <p class="timer-task-name" id="timer-task-name"></p>
+        </div>
+    </div>
+
+    <!-- Keyboard Shortcuts Helper -->
+    <div id="shortcuts-panel" class="shortcuts-panel hidden">
+        <h3>Keyboard Shortcuts</h3>
+        <div class="shortcut-list">
+            <div class="shortcut-item"><kbd>Ctrl+N</kbd> <span>New Item</span></div>
+            <div class="shortcut-item"><kbd>Ctrl+F</kbd> <span>Search</span></div>
+            <div class="shortcut-item"><kbd>Ctrl+H</kbd> <span>Home</span></div>
+            <div class="shortcut-item"><kbd>Ctrl+T</kbd> <span>Toggle Theme</span></div>
+            <div class="shortcut-item"><kbd>Ctrl+E</kbd> <span>Export Data</span></div>
+            <div class="shortcut-item"><kbd>?</kbd> <span>Show Shortcuts</span></div>
+        </div>
+    </div>
 
     <div class="app-container">
         <aside class="sidebar">
@@ -16,10 +50,36 @@
                 <h2 id="sidebar-title">Phases</h2>
                 <button class="add-btn" id="sidebar-add-btn"><i class="fas fa-plus"></i></button>
             </div>
+
+            <!-- Search Bar -->
+            <div class="search-container">
+                <input type="text" id="global-search" placeholder="Search tasks..." class="search-input">
+                <i class="fas fa-search search-icon"></i>
+            </div>
+
+            <!-- Filter Controls -->
+            <div class="filter-container">
+                <select id="filter-priority" class="filter-select">
+                    <option value="">All Priorities</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                </select>
+                <select id="filter-tag" class="filter-select">
+                    <option value="">All Tags</option>
+                </select>
+            </div>
+
             <div class="sidebar-content" id="sidebar-list">
-                </div>
+            </div>
             
             <div class="sidebar-footer">
+                <button id="analytics-btn" class="btn-main">
+                    <i class="fas fa-chart-line"></i> Analytics
+                </button>
+                <button id="archive-btn" class="btn-main">
+                    <i class="fas fa-archive"></i> Archives
+                </button>
                 <button id="settings-btn" class="btn-main">
                     <i class="fas fa-cog"></i> Settings
                 </button>
@@ -51,6 +111,52 @@
 
                 <hr class="divider">
 
+                <!-- Analytics Dashboard -->
+                <div id="analytics-dashboard" class="analytics-dashboard" style="display: none;">
+                    <div class="analytics-grid">
+                        <div class="stat-card glass-effect">
+                            <h3>Total Tasks</h3>
+                            <p class="stat-number" id="stat-total-tasks">0</p>
+                        </div>
+                        <div class="stat-card glass-effect">
+                            <h3>Completed</h3>
+                            <p class="stat-number" id="stat-completed-tasks">0</p>
+                        </div>
+                        <div class="stat-card glass-effect">
+                            <h3>In Progress</h3>
+                            <p class="stat-number" id="stat-pending-tasks">0</p>
+                        </div>
+                        <div class="stat-card glass-effect">
+                            <h3>Completion Rate</h3>
+                            <p class="stat-number" id="stat-completion-rate">0%</p>
+                        </div>
+                    </div>
+                    <div class="analytics-grid">
+                        <div class="chart-card glass-effect">
+                            <h3>Time Spent (Hours)</h3>
+                            <canvas id="time-chart"></canvas>
+                        </div>
+                        <div class="chart-card glass-effect">
+                            <h3>Progress by Phase</h3>
+                            <canvas id="progress-chart"></canvas>
+                        </div>
+                    </div>
+                    <div class="streak-display glass-effect">
+                        <h3><i class="fas fa-fire"></i> Current Streak</h3>
+                        <p class="streak-number" id="streak-days">0 days</p>
+                        <p class="streak-subtitle">Keep up the great work!</p>
+                    </div>
+                </div>
+
+                <!-- Archive View -->
+                <div id="archive-view" class="archive-view" style="display: none;">
+                    <div class="list-header">
+                        <h2>Archived Items</h2>
+                        <button class="btn-outline" onclick="clearArchive()">Clear All</button>
+                    </div>
+                    <div id="archive-list" class="archive-list"></div>
+                </div>
+
                 <div id="home-calendar-container" style="display: none;">
                     <div class="calendar-header">
                         <button id="prev-month"><i class="fas fa-chevron-left"></i></button>
@@ -58,7 +164,7 @@
                         <button id="next-month"><i class="fas fa-chevron-right"></i></button>
                     </div>
                     <div class="calendar-grid" id="calendar-grid">
-                        </div>
+                    </div>
                 </div>
 
                 <div id="main-list-section" class="list-section">
@@ -67,10 +173,60 @@
                         <button class="add-text-btn" id="add-item-btn"><i class="fas fa-plus"></i></button>
                     </div>
                     <div id="main-list-container" class="task-list">
-                        </div>
+                    </div>
                 </div>
 
                 <div id="task-detail-section" class="list-section scrollable-detail" style="display: none;">
+                    <!-- Task Metadata -->
+                    <div class="task-metadata glass-effect">
+                        <div class="metadata-item">
+                            <label>Priority:</label>
+                            <select id="task-priority" class="priority-select">
+                                <option value="low">Low</option>
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
+                            </select>
+                        </div>
+                        <div class="metadata-item">
+                            <label>Tags:</label>
+                            <div id="task-tags-container" class="tags-container"></div>
+                            <button onclick="openTagModal()" class="btn-outline small-btn">Add Tag</button>
+                        </div>
+                        <div class="metadata-item">
+                            <label>Due Date:</label>
+                            <input type="date" id="task-due-date" class="glass-input">
+                        </div>
+                        <div class="metadata-item">
+                            <label>Recurring:</label>
+                            <select id="task-recurring" class="glass-input">
+                                <option value="">None</option>
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="monthly">Monthly</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Time Tracking -->
+                    <div class="resource-group">
+                        <h3><i class="fas fa-clock"></i> Time Tracking</h3>
+                        <div class="time-tracker glass-effect">
+                            <div class="time-display">
+                                <span id="task-time-spent">0h 0m</span>
+                            </div>
+                            <div class="time-controls">
+                                <button onclick="startTaskTimer()" class="btn-green" id="start-timer-btn">
+                                    <i class="fas fa-play"></i> Start Timer
+                                </button>
+                                <button onclick="pauseTaskTimer()" class="btn-outline hidden" id="pause-timer-btn">
+                                    <i class="fas fa-pause"></i> Pause
+                                </button>
+                                <button onclick="openPomodoroTimer()" class="btn-outline">
+                                    <i class="fas fa-hourglass-half"></i> Pomodoro
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                     
                     <div class="resource-group">
                         <div class="list-header small-header">
@@ -78,7 +234,7 @@
                             <button class="add-text-btn" id="add-note-btn"><i class="fas fa-plus"></i></button>
                         </div>
                         <div id="notes-list-container" class="notes-stack">
-                            </div>
+                        </div>
                     </div>
                     
                     <div class="resource-group">
@@ -88,32 +244,51 @@
                             <button id="add-video-btn" class="btn-green">Add Video</button>
                         </div>
                         <div id="video-list-container" class="video-stack">
-                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
             
             <div class="quote-footer">
-                <p>“Planning is not Progress. Take Action!”</p>
+                <p>"Planning is not Progress. Take Action!"</p>
             </div>
         </main>
     </div>
 
+    <!-- Settings Modal -->
     <div id="settings-modal" class="modal">
         <div class="modal-content glass-effect">
             <span class="close-modal">&times;</span>
-            <h2>Data Management</h2>
-            <div class="modal-actions">
-                <button id="export-btn" class="btn-green"><i class="fas fa-download"></i> Export Data</button>
-                <label for="import-file" class="btn-outline">
-                    <i class="fas fa-upload"></i> Import Data
-                </label>
-                <input type="file" id="import-file" accept=".json" hidden>
+            <h2>Settings & Data Management</h2>
+            
+            <!-- Theme Selection -->
+            <div class="settings-section">
+                <h3>Theme</h3>
+                <div class="theme-selector">
+                    <button onclick="setTheme('dark')" class="theme-btn" data-theme="dark">Dark</button>
+                    <button onclick="setTheme('blue')" class="theme-btn" data-theme="blue">Ocean</button>
+                    <button onclick="setTheme('purple')" class="theme-btn" data-theme="purple">Purple</button>
+                    <button onclick="setTheme('green')" class="theme-btn" data-theme="green">Forest</button>
+                </div>
             </div>
+
+            <!-- Data Management -->
+            <div class="settings-section">
+                <h3>Data</h3>
+                <div class="modal-actions">
+                    <button id="export-btn" class="btn-green"><i class="fas fa-download"></i> Export Data</button>
+                    <label for="import-file" class="btn-outline">
+                        <i class="fas fa-upload"></i> Import Data
+                    </label>
+                    <input type="file" id="import-file" accept=".json" hidden>
+                </div>
+            </div>
+
             <p id="backup-status" class="status-text"></p>
         </div>
     </div>
 
+    <!-- Input Modal -->
     <div id="input-modal" class="modal">
         <div class="modal-content glass-effect">
             <h2 id="modal-title">Edit Item</h2>
@@ -126,6 +301,27 @@
         </div>
     </div>
 
+    <!-- Tag Modal -->
+    <div id="tag-modal" class="modal">
+        <div class="modal-content glass-effect">
+            <h2>Add Tag</h2>
+            <input type="text" id="tag-input" placeholder="Enter tag name..." autocomplete="off">
+            <div class="color-picker">
+                <div class="color-option" data-color="#5CE38D" style="background: #5CE38D;"></div>
+                <div class="color-option" data-color="#FF6B6B" style="background: #FF6B6B;"></div>
+                <div class="color-option" data-color="#4ECDC4" style="background: #4ECDC4;"></div>
+                <div class="color-option" data-color="#FFE66D" style="background: #FFE66D;"></div>
+                <div class="color-option" data-color="#A8DADC" style="background: #A8DADC;"></div>
+                <div class="color-option" data-color="#F1FAEE" style="background: #F1FAEE;"></div>
+            </div>
+            <div class="modal-actions">
+                <button id="tag-cancel" class="btn-outline">Cancel</button>
+                <button id="tag-save" class="btn-green">Add Tag</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

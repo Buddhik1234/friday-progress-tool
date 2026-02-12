@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Progress Tracker - Friday Protocol</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="app-container">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2 id="sidebar-title">Phases</h2>
+                <button class="add-btn" id="sidebar-add-btn"><i class="fas fa-plus"></i></button>
+            </div>
+            <div class="sidebar-content" id="sidebar-list">
+                </div>
+            
+            <div class="sidebar-footer">
+                <button id="settings-btn" class="btn-main">
+                    <i class="fas fa-cog"></i> Settings
+                </button>
+            </div>
+        </aside>
+
+        <main class="main-content">
+            <div id="nav-header" class="nav-header"></div>
+
+            <div class="content-wrapper">
+                <div class="header-section">
+                    <div class="title-block">
+                        <h1 id="page-title">Dashboard</h1>
+                        <div class="subtitle-wrapper">
+                            <p id="page-subtitle">Overview</p>
+                            <i class="fas fa-pencil-alt" id="edit-subtitle-btn"></i>
+                        </div>
+                    </div>
+                    <div class="progress-block">
+                        <div class="progress-labels">
+                            <span>Progress</span>
+                            <span id="progress-text">0%</span>
+                        </div>
+                        <div class="progress-bar-bg">
+                            <div class="progress-bar-fill" id="main-progress-bar" style="width: 0%;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="divider">
+
+                <div id="home-calendar-container" style="display: none;">
+                    <div class="calendar-header">
+                        <button id="prev-month"><i class="fas fa-chevron-left"></i></button>
+                        <h2 id="calendar-month-year">Month Year</h2>
+                        <button id="next-month"><i class="fas fa-chevron-right"></i></button>
+                    </div>
+                    <div class="calendar-grid" id="calendar-grid">
+                        </div>
+                </div>
+
+                <div id="main-list-section" class="list-section">
+                    <div class="list-header">
+                        <h2 id="list-title">Tasks</h2>
+                        <button class="add-text-btn" id="add-item-btn"><i class="fas fa-plus"></i></button>
+                    </div>
+                    <div id="main-list-container" class="task-list">
+                        </div>
+                </div>
+
+                <div id="task-detail-section" class="list-section scrollable-detail" style="display: none;">
+                    
+                    <div class="resource-group">
+                        <div class="list-header small-header">
+                            <h3>Notes</h3>
+                            <button class="add-text-btn" id="add-note-btn"><i class="fas fa-plus"></i></button>
+                        </div>
+                        <div id="notes-list-container" class="notes-stack">
+                            </div>
+                    </div>
+                    
+                    <div class="resource-group">
+                        <h3>Video Guides</h3>
+                        <div class="video-input-wrapper">
+                            <input type="text" id="youtube-url" class="glass-input" placeholder="Paste YouTube Link here...">
+                            <button id="add-video-btn" class="btn-green">Add Video</button>
+                        </div>
+                        <div id="video-list-container" class="video-stack">
+                            </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="quote-footer">
+                <p>“Planning is not Progress. Take Action!”</p>
+            </div>
+        </main>
+    </div>
+
+    <div id="settings-modal" class="modal">
+        <div class="modal-content glass-effect">
+            <span class="close-modal">&times;</span>
+            <h2>Data Management</h2>
+            <div class="modal-actions">
+                <button id="export-btn" class="btn-green"><i class="fas fa-download"></i> Export Data</button>
+                <label for="import-file" class="btn-outline">
+                    <i class="fas fa-upload"></i> Import Data
+                </label>
+                <input type="file" id="import-file" accept=".json" hidden>
+            </div>
+            <p id="backup-status" class="status-text"></p>
+        </div>
+    </div>
+
+    <div id="input-modal" class="modal">
+        <div class="modal-content glass-effect">
+            <h2 id="modal-title">Edit Item</h2>
+            <input type="text" id="modal-input" placeholder="Enter text here..." autocomplete="off">
+            <input type="date" id="modal-date-input" class="hidden">
+            <div class="modal-actions">
+                <button id="modal-cancel" class="btn-outline">Cancel</button>
+                <button id="modal-save" class="btn-green">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

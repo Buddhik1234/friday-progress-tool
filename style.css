@@ -1279,3 +1279,33 @@ button {
         overflow-x: auto;
     }
 }
+
+/* --- SCROLLABLE LISTS FIX --- */
+
+/* 1. Specific fix for Task List (Example User gave) */
+.task-list {
+    /* Sets a maximum height. If content is less, it shrinks. 
+       If more, it stops at 400px (or 60vh) and scrolls. */
+    max-height: 65vh; /* Takes up 65% of the viewport height */
+    overflow-y: auto; /* Adds scrollbar only when needed */
+    
+    /* Optional: Adds breathing room for the scrollbar */
+    padding-right: 10px; 
+}
+
+/* 2. Generic Class for any Scrollable Page/Section */
+/* You can add class="scroll-container" to any div you want to scroll */
+.scroll-container {
+    height: 100%; /* Or specific pixel value like 500px */
+    max-height: 80vh; 
+    overflow-y: auto;
+    position: relative; /* Keeps scrollbar context inside */
+}
+
+/* 3. Fix for the Main Content Page (If the whole page needs to scroll) */
+/* Assuming your main content is wrapped in a class like .main-content or .container */
+.main-content {
+    height: 100vh; /* Forces it to fit the screen */
+    overflow-y: auto; /* Scrolls internally */
+    padding-bottom: 50px; /* Space for scrolling at bottom */
+}

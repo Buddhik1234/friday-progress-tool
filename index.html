@@ -57,28 +57,12 @@
                 <i class="fas fa-search search-icon"></i>
             </div>
 
-            <!-- Filter Controls -->
-            <div class="filter-container">
-                <select id="filter-priority" class="filter-select">
-                    <option value="">All Priorities</option>
-                    <option value="high">High</option>
-                    <option value="medium">Medium</option>
-                    <option value="low">Low</option>
-                </select>
-                <select id="filter-tag" class="filter-select">
-                    <option value="">All Tags</option>
-                </select>
-            </div>
-
             <div class="sidebar-content" id="sidebar-list">
             </div>
             
             <div class="sidebar-footer">
                 <button id="analytics-btn" class="btn-main">
                     <i class="fas fa-chart-line"></i> Analytics
-                </button>
-                <button id="archive-btn" class="btn-main">
-                    <i class="fas fa-archive"></i> Archives
                 </button>
                 <button id="settings-btn" class="btn-main">
                     <i class="fas fa-cog"></i> Settings
@@ -148,15 +132,6 @@
                     </div>
                 </div>
 
-                <!-- Archive View -->
-                <div id="archive-view" class="archive-view" style="display: none;">
-                    <div class="list-header">
-                        <h2>Archived Items</h2>
-                        <button class="btn-outline" onclick="clearArchive()">Clear All</button>
-                    </div>
-                    <div id="archive-list" class="archive-list"></div>
-                </div>
-
                 <div id="home-calendar-container" style="display: none;">
                     <div class="calendar-header">
                         <button id="prev-month"><i class="fas fa-chevron-left"></i></button>
@@ -176,49 +151,20 @@
                     </div>
                 </div>
 
-                <div id="task-detail-section" class="list-section scrollable-detail" style="display: none;">
-                    <!-- Task Metadata -->
-                    <div class="task-metadata glass-effect">
-                        <div class="metadata-item">
-                            <label>Priority:</label>
-                            <select id="task-priority" class="priority-select">
-                                <option value="low">Low</option>
-                                <option value="medium">Medium</option>
-                                <option value="high">High</option>
-                            </select>
-                        </div>
-                        <div class="metadata-item">
-                            <label>Tags:</label>
-                            <div id="task-tags-container" class="tags-container"></div>
-                            <button onclick="openTagModal()" class="btn-outline small-btn">Add Tag</button>
-                        </div>
-                        <div class="metadata-item">
-                            <label>Due Date:</label>
-                            <input type="date" id="task-due-date" class="glass-input">
-                        </div>
-                        <div class="metadata-item">
-                            <label>Recurring:</label>
-                            <select id="task-recurring" class="glass-input">
-                                <option value="">None</option>
-                                <option value="daily">Daily</option>
-                                <option value="weekly">Weekly</option>
-                                <option value="monthly">Monthly</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Time Tracking -->
+                <!-- Day Actions (Time Tracking & Materials Button) -->
+                <div id="day-actions-section" class="day-actions-section" style="display: none;">
+                    <!-- Time Tracking for Day -->
                     <div class="resource-group">
                         <h3><i class="fas fa-clock"></i> Time Tracking</h3>
                         <div class="time-tracker glass-effect">
                             <div class="time-display">
-                                <span id="task-time-spent">0h 0m</span>
+                                <span id="day-time-spent">0h 0m</span>
                             </div>
                             <div class="time-controls">
-                                <button onclick="startTaskTimer()" class="btn-green" id="start-timer-btn">
+                                <button onclick="startDayTimer()" class="btn-green" id="start-day-timer-btn">
                                     <i class="fas fa-play"></i> Start Timer
                                 </button>
-                                <button onclick="pauseTaskTimer()" class="btn-outline hidden" id="pause-timer-btn">
+                                <button onclick="pauseDayTimer()" class="btn-outline hidden" id="pause-day-timer-btn">
                                     <i class="fas fa-pause"></i> Pause
                                 </button>
                                 <button onclick="openPomodoroTimer()" class="btn-outline">
@@ -227,8 +173,34 @@
                             </div>
                         </div>
                     </div>
-                    
-                    <div class="resource-group">
+
+                    <!-- Materials Button -->
+                    <div class="materials-button-container">
+                        <button onclick="navigateToMaterials()" class="btn-materials">
+                            <i class="fas fa-folder-open"></i> Open Materials
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Materials Page -->
+                <div id="materials-page" class="materials-page" style="display: none;">
+                    <div class="materials-tabs">
+                        <button class="materials-tab active" onclick="switchMaterialsTab('notes')">
+                            <i class="fas fa-sticky-note"></i> Notes
+                        </button>
+                        <button class="materials-tab" onclick="switchMaterialsTab('videos')">
+                            <i class="fas fa-video"></i> Video Guides
+                        </button>
+                        <button class="materials-tab" onclick="switchMaterialsTab('files')">
+                            <i class="fas fa-file"></i> Files
+                        </button>
+                        <button class="materials-tab" onclick="switchMaterialsTab('links')">
+                            <i class="fas fa-link"></i> Links
+                        </button>
+                    </div>
+
+                    <!-- Notes Tab -->
+                    <div id="materials-notes" class="materials-tab-content active">
                         <div class="list-header small-header">
                             <h3>Notes</h3>
                             <button class="add-text-btn" id="add-note-btn"><i class="fas fa-plus"></i></button>
@@ -236,8 +208,9 @@
                         <div id="notes-list-container" class="notes-stack">
                         </div>
                     </div>
-                    
-                    <div class="resource-group">
+
+                    <!-- Videos Tab -->
+                    <div id="materials-videos" class="materials-tab-content">
                         <h3>Video Guides</h3>
                         <div class="video-input-wrapper">
                             <input type="text" id="youtube-url" class="glass-input" placeholder="Paste YouTube Link here...">
@@ -246,11 +219,31 @@
                         <div id="video-list-container" class="video-stack">
                         </div>
                     </div>
+
+                    <!-- Files Tab -->
+                    <div id="materials-files" class="materials-tab-content">
+                        <h3>Files</h3>
+                        <div class="file-input-wrapper">
+                            <input type="file" id="file-upload-input" class="hidden" multiple>
+                            <button id="add-file-btn" class="btn-green">
+                                <i class="fas fa-upload"></i> Add Files
+                            </button>
+                        </div>
+                        <div id="files-list-container" class="files-stack">
+                        </div>
+                    </div>
+
+                    <!-- Links Tab -->
+                    <div id="materials-links" class="materials-tab-content">
+                        <h3>Links</h3>
+                        <div class="link-input-wrapper">
+                            <input type="text" id="link-url" class="glass-input" placeholder="Enter website link (e.g., https://example.com/document.pdf)">
+                            <button id="add-link-btn" class="btn-green">Add Link</button>
+                        </div>
+                        <div id="links-list-container" class="links-stack">
+                        </div>
+                    </div>
                 </div>
-            </div>
-            
-            <div class="quote-footer">
-                <p>"Planning is not Progress. Take Action!"</p>
             </div>
         </main>
     </div>
@@ -297,26 +290,6 @@
             <div class="modal-actions">
                 <button id="modal-cancel" class="btn-outline">Cancel</button>
                 <button id="modal-save" class="btn-green">Save</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Tag Modal -->
-    <div id="tag-modal" class="modal">
-        <div class="modal-content glass-effect">
-            <h2>Add Tag</h2>
-            <input type="text" id="tag-input" placeholder="Enter tag name..." autocomplete="off">
-            <div class="color-picker">
-                <div class="color-option" data-color="#5CE38D" style="background: #5CE38D;"></div>
-                <div class="color-option" data-color="#FF6B6B" style="background: #FF6B6B;"></div>
-                <div class="color-option" data-color="#4ECDC4" style="background: #4ECDC4;"></div>
-                <div class="color-option" data-color="#FFE66D" style="background: #FFE66D;"></div>
-                <div class="color-option" data-color="#A8DADC" style="background: #A8DADC;"></div>
-                <div class="color-option" data-color="#F1FAEE" style="background: #F1FAEE;"></div>
-            </div>
-            <div class="modal-actions">
-                <button id="tag-cancel" class="btn-outline">Cancel</button>
-                <button id="tag-save" class="btn-green">Add Tag</button>
             </div>
         </div>
     </div>

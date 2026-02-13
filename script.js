@@ -1,29 +1,25 @@
 // ============================================================
-// PROGRESS TRACKER PRO - Enhanced Features
+// PROGRESS TRACKER PRO - Enhanced Features with Drag & Drop
 // ============================================================
 
 // === Data Structure & State ===
 let appData = { 
     phases: [],
-    tags: [],
-    archive: [],
     settings: {
         theme: 'dark',
         lastActivity: null
     }
 };
 
-let currentView = { type: 'home', phaseId: null, weekId: null, dayId: null, taskId: null };
+let currentView = { type: 'home', phaseId: null, weekId: null, dayId: null };
 let calendarDate = new Date();
 let searchQuery = '';
-let filterPriority = '';
-let filterTag = '';
+let currentMaterialsTab = 'notes';
 
-// Time tracking state
-let activeTimer = null;
-let timerInterval = null;
-let timerStartTime = null;
-let timerElapsed = 0;
+// Time tracking state (now for entire day)
+let dayTimerInterval = null;
+let dayTimerStartTime = null;
+let dayTimerElapsed = 0;
 
 // Pomodoro state
 let pomodoroTimer = null;
@@ -32,8 +28,9 @@ let pomodoroMinutes = 25;
 let pomodoroSeconds = 0;
 let pomodoroRunning = false;
 
-// Tag modal state
-let selectedTagColor = '#5CE38D';
+// Drag and drop state
+let draggedElement = null;
+let draggedIndex = null;
 
 // Charts
 let timeChart = null;
@@ -47,8 +44,6 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
     setupKeyboardShortcuts();
     renderView();
-    updateTagFilter();
-    checkRecurringTasks();
 });
 
 // === Data Persistence ===
@@ -59,26 +54,34 @@ function loadData() {
         appData = { ...appData, ...parsed };
     }
     
-    // Data migration: ensure all tasks have new properties
+    // Data migration: ensure all items have new simplified structure
     appData.phases.forEach(phase => {
         phase.weeks?.forEach(week => {
             week.days?.forEach(day => {
+                // Initialize day-level properties
+                if (!day.timeSpent) day.timeSpent = 0;
+                if (!day.notes) day.notes = [];
+                if (!day.videos) day.videos = [];
+                if (!day.files) day.files = [];
+                if (!day.links) day.links = [];
+                
+                // Simplify tasks - remove old complex properties
                 day.tasks?.forEach(task => {
-                    if (!task.priority) task.priority = 'medium';
-                    if (!task.tags) task.tags = [];
-                    if (!task.timeSpent) task.timeSpent = 0;
-                    if (!task.dueDate) task.dueDate = '';
-                    if (!task.recurring) task.recurring = '';
-                    if (!task.lastCompleted) task.lastCompleted = '';
-                    if (typeof task.notes === 'string') {
-                        task.notes = task.notes ? [task.notes] : [];
-                    }
-                    if (!Array.isArray(task.notes)) task.notes = [];
-                    if (!task.videos) task.videos = [];
-                    if (task.videoUrl) {
-                        task.videos.push(task.videoUrl);
-                        delete task.videoUrl;
-                    }
+                    // Keep only text and completed
+                    const simplified = {
+                        text: task.text,
+                        completed: task.completed || false
+                    };
+                    Object.assign(task, simplified);
+                    // Remove old properties
+                    delete task.priority;
+                    delete task.tags;
+                    delete task.timeSpent;
+                    delete task.dueDate;
+                    delete task.recurring;
+                    delete task.lastCompleted;
+                    delete task.notes;
+                    delete task.videos;
                 });
             });
         });
@@ -123,7 +126,6 @@ function applyTheme() {
 function navigateTo(type, id = null) {
     // Hide special views
     document.getElementById('analytics-dashboard').style.display = 'none';
-    document.getElementById('archive-view').style.display = 'none';
     
     if (type === 'analytics') {
         currentView = { type: 'analytics' };
@@ -131,35 +133,33 @@ function navigateTo(type, id = null) {
         return;
     }
     
-    if (type === 'archive') {
-        currentView = { type: 'archive' };
-        renderArchive();
+    if (type === 'materials') {
+        currentView.type = 'materials';
+        renderMaterialsPage();
         return;
     }
     
     if (type === 'home') {
-        currentView = { type: 'home', phaseId: null, weekId: null, dayId: null, taskId: null };
+        currentView = { type: 'home', phaseId: null, weekId: null, dayId: null };
     } else if (type === 'phase') {
         currentView.type = 'phase';
         currentView.phaseId = id;
         currentView.weekId = null;
         currentView.dayId = null;
-        currentView.taskId = null;
     } else if (type === 'week') {
         currentView.type = 'week';
         currentView.weekId = id;
         currentView.dayId = null;
-        currentView.taskId = null;
     } else if (type === 'day') {
         currentView.type = 'day';
         currentView.dayId = id;
-        currentView.taskId = null;
-    } else if (type === 'task') {
-        currentView.type = 'task';
-        currentView.taskId = id;
     }
     
     renderView();
+}
+
+function navigateToMaterials() {
+    navigateTo('materials');
 }
 
 function renderView() {
@@ -168,7 +168,8 @@ function renderView() {
     const navHeader = document.getElementById('nav-header');
     const homeCalendar = document.getElementById('home-calendar-container');
     const listSection = document.getElementById('main-list-section');
-    const taskDetailSection = document.getElementById('task-detail-section');
+    const dayActionsSection = document.getElementById('day-actions-section');
+    const materialsPage = document.getElementById('materials-page');
     const subtitle = document.getElementById('page-subtitle');
     const editBtn = document.getElementById('edit-subtitle-btn');
 
@@ -177,7 +178,8 @@ function renderView() {
     // Default visibility reset
     homeCalendar.style.display = 'none';
     listSection.style.display = 'block';
-    taskDetailSection.style.display = 'none';
+    dayActionsSection.style.display = 'none';
+    materialsPage.style.display = 'none';
     editBtn.style.display = 'inline-block';
 
     if (currentView.type === 'home') {
@@ -185,7 +187,7 @@ function renderView() {
         navHeader.innerHTML = '';
         
         appData.phases.forEach(phase => {
-            const el = createSidebarItem(phase.title, phase.id, () => navigateTo('phase', phase.id), 'phase');
+            const el = createSidebarItem(phase.title, phase.id, () => navigateTo('phase', phase.id), 'phase', isPhaseComplete(phase));
             sidebarList.appendChild(el);
         });
 
@@ -206,7 +208,7 @@ function renderView() {
         navHeader.innerHTML = `<button class="back-btn" onclick="navigateTo('home')"><i class="fas fa-arrow-left"></i> Home</button>`;
 
         phase.weeks.forEach(week => {
-            const el = createSidebarItem(week.title, week.id, () => navigateTo('week', week.id), 'week');
+            const el = createSidebarItem(week.title, week.id, () => navigateTo('week', week.id), 'week', isWeekComplete(week));
             sidebarList.appendChild(el);
         });
 
@@ -225,7 +227,7 @@ function renderView() {
         navHeader.innerHTML = `<button class="back-btn" onclick="navigateTo('phase', '${phase.id}')"><i class="fas fa-arrow-left"></i> ${phase.title}</button>`;
 
         week.days.forEach(day => {
-            const el = createSidebarItem(day.title, day.id, () => navigateTo('day', day.id), 'day');
+            const el = createSidebarItem(day.title, day.id, () => navigateTo('day', day.id), 'day', isDayComplete(day));
             sidebarList.appendChild(el);
         });
 
@@ -241,11 +243,11 @@ function renderView() {
         const week = phase.weeks.find(w => w.id === currentView.weekId);
         const day = week.days.find(d => d.id === currentView.dayId);
 
-        sidebarTitle.innerText = 'Tasks';
+        sidebarTitle.innerText = 'Days';
         navHeader.innerHTML = `<button class="back-btn" onclick="navigateTo('week', '${week.id}')"><i class="fas fa-arrow-left"></i> ${week.title}</button>`;
 
         week.days.forEach(d => {
-            const el = createSidebarItem(d.title, d.id, () => navigateTo('day', d.id), 'day');
+            const el = createSidebarItem(d.title, d.id, () => navigateTo('day', d.id), 'day', isDayComplete(d));
             if (d.id === day.id) el.style.borderLeft = "4px solid var(--main-green)";
             sidebarList.appendChild(el);
         });
@@ -254,36 +256,79 @@ function renderView() {
         subtitle.innerText = day.assignedDate || 'Set Date';
         document.getElementById('list-title').innerText = 'Tasks';
 
+        // Show tasks and day actions
+        listSection.style.display = 'block';
+        dayActionsSection.style.display = 'block';
+
         renderChecklist(day.tasks, 'task');
         updateProgressBar(calculateDayProgress(day));
-
-    } else if (currentView.type === 'task') {
-        const phase = appData.phases.find(p => p.id === currentView.phaseId);
-        const week = phase.weeks.find(w => w.id === currentView.weekId);
-        const day = week.days.find(d => d.id === currentView.dayId);
-        const task = day.tasks[currentView.taskId];
-
-        listSection.style.display = 'none';
-        taskDetailSection.style.display = 'block';
-        editBtn.style.display = 'none';
-
-        sidebarTitle.innerText = 'Day Tasks';
-        navHeader.innerHTML = `<button class="back-btn" onclick="navigateTo('day', '${day.id}')"><i class="fas fa-arrow-left"></i> ${day.title}</button>`;
-
-        day.tasks.forEach((t, idx) => {
-            const el = createSidebarItem(t.text, idx, () => navigateTo('task', idx), 'task');
-            if (idx === currentView.taskId) el.style.borderLeft = "4px solid var(--main-green)";
-            sidebarList.appendChild(el);
-        });
-
-        document.getElementById('page-title').innerText = "Task Detail";
-        subtitle.innerText = task.text;
-
-        renderTaskDetails(task);
+        
+        // Update day time display
+        updateDayTimeDisplay(day);
     }
 }
 
-// === Checklist Rendering with Filters ===
+function renderMaterialsPage() {
+    const phase = appData.phases.find(p => p.id === currentView.phaseId);
+    const week = phase.weeks.find(w => w.id === currentView.weekId);
+    const day = week.days.find(d => d.id === currentView.dayId);
+
+    // Hide other sections
+    document.getElementById('home-calendar-container').style.display = 'none';
+    document.getElementById('main-list-section').style.display = 'none';
+    document.getElementById('day-actions-section').style.display = 'none';
+    document.getElementById('analytics-dashboard').style.display = 'none';
+    
+    // Show materials page
+    document.getElementById('materials-page').style.display = 'block';
+    
+    // Update header
+    document.getElementById('page-title').innerText = 'Materials';
+    document.getElementById('page-subtitle').innerText = day.title;
+    document.getElementById('edit-subtitle-btn').style.display = 'none';
+    
+    // Update nav
+    document.getElementById('nav-header').innerHTML = `<button class="back-btn" onclick="navigateTo('day', '${day.id}')"><i class="fas fa-arrow-left"></i> ${day.title}</button>`;
+    
+    // Render materials based on current tab
+    switchMaterialsTab(currentMaterialsTab);
+}
+
+function switchMaterialsTab(tabName) {
+    currentMaterialsTab = tabName;
+    
+    const phase = appData.phases.find(p => p.id === currentView.phaseId);
+    const week = phase.weeks.find(w => w.id === currentView.weekId);
+    const day = week.days.find(d => d.id === currentView.dayId);
+    
+    // Update tab buttons
+    document.querySelectorAll('.materials-tab').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    event?.target?.classList?.add('active');
+    
+    // Hide all tab contents
+    document.querySelectorAll('.materials-tab-content').forEach(content => {
+        content.classList.remove('active');
+    });
+    
+    // Show selected tab
+    if (tabName === 'notes') {
+        document.getElementById('materials-notes').classList.add('active');
+        renderNotes(day);
+    } else if (tabName === 'videos') {
+        document.getElementById('materials-videos').classList.add('active');
+        renderVideos(day);
+    } else if (tabName === 'files') {
+        document.getElementById('materials-files').classList.add('active');
+        renderFiles(day);
+    } else if (tabName === 'links') {
+        document.getElementById('materials-links').classList.add('active');
+        renderLinks(day);
+    }
+}
+
+// === Checklist Rendering with Drag & Drop ===
 function renderChecklist(items, itemType) {
     const container = document.getElementById('main-list-container');
     container.innerHTML = '';
@@ -297,43 +342,26 @@ function renderChecklist(items, itemType) {
         );
     }
     
-    // Apply priority filter
-    if (filterPriority && itemType === 'task') {
-        filteredItems = filteredItems.filter(({ item }) =>
-            item.priority === filterPriority
-        );
-    }
-    
-    // Apply tag filter
-    if (filterTag && itemType === 'task') {
-        filteredItems = filteredItems.filter(({ item }) =>
-            item.tags && item.tags.includes(filterTag)
-        );
-    }
-    
     filteredItems.forEach(({ item, index }) => {
         const div = document.createElement('div');
         div.className = `task-item ${item.completed ? 'completed' : ''}`;
         
+        // Add drag and drop only for tasks
         if (itemType === 'task') {
-            div.setAttribute('data-priority', item.priority || 'medium');
+            div.setAttribute('draggable', 'true');
+            div.setAttribute('data-index', index);
+            
+            div.addEventListener('dragstart', handleDragStart);
+            div.addEventListener('dragover', handleDragOver);
+            div.addEventListener('drop', handleDrop);
+            div.addEventListener('dragend', handleDragEnd);
         }
         
-        const clickAction = itemType === 'task' ? `onclick="navigateTo('task', ${index})"` : '';
-        
-        let tagsHTML = '';
-        if (itemType === 'task' && item.tags && item.tags.length > 0) {
-            const tagObjs = item.tags.map(t => appData.tags.find(tag => tag.name === t)).filter(Boolean);
-            tagsHTML = '<div class="task-tags">' + tagObjs.map(tag =>
-                `<span class="tag" style="background: ${tag.color}">${tag.name}</span>`
-            ).join('') + '</div>';
-        }
-
         div.innerHTML = `
+            <div class="drag-handle ${itemType === 'task' ? '' : 'hidden'}"><i class="fas fa-grip-vertical"></i></div>
             <div class="checkbox-custom"><i class="fas fa-check"></i></div>
             <div style="flex-grow:1; margin-left:10px;">
-                <span style="cursor:pointer;" ${clickAction}>${item.text}</span>
-                ${tagsHTML}
+                <span>${item.text}</span>
             </div>
             <div class="action-icons">
                 <i class="fas fa-pencil-alt" id="edit-${index}"></i>
@@ -344,9 +372,6 @@ function renderChecklist(items, itemType) {
         div.querySelector('.checkbox-custom').addEventListener('click', (e) => {
             e.stopPropagation();
             item.completed = !item.completed;
-            if (item.completed && item.recurring) {
-                item.lastCompleted = new Date().toISOString();
-            }
             saveData();
         });
         
@@ -366,250 +391,136 @@ function renderChecklist(items, itemType) {
         container.appendChild(div);
     });
     
-    if (filteredItems.length === 0 && (searchQuery || filterPriority || filterTag)) {
-        container.innerHTML = '<p style="opacity: 0.5; text-align: center; padding: 20px;">No items match your filters</p>';
+    if (filteredItems.length === 0 && searchQuery) {
+        container.innerHTML = '<p style="opacity: 0.5; text-align: center; padding: 20px;">No items match your search</p>';
     }
 }
 
-// === Task Details Rendering ===
-function renderTaskDetails(task) {
-    // Priority
-    const prioritySelect = document.getElementById('task-priority');
-    prioritySelect.value = task.priority || 'medium';
-    prioritySelect.onchange = () => {
-        task.priority = prioritySelect.value;
-        saveDataQuietly();
-    };
-    
-    // Tags
-    renderTaskTags(task);
-    
-    // Due Date
-    const dueDateInput = document.getElementById('task-due-date');
-    dueDateInput.value = task.dueDate || '';
-    dueDateInput.onchange = () => {
-        task.dueDate = dueDateInput.value;
-        saveDataQuietly();
-    };
-    
-    // Recurring
-    const recurringSelect = document.getElementById('task-recurring');
-    recurringSelect.value = task.recurring || '';
-    recurringSelect.onchange = () => {
-        task.recurring = recurringSelect.value;
-        saveDataQuietly();
-    };
-    
-    // Time Tracking
-    updateTaskTimeDisplay(task);
-    
-    // Notes
-    renderNotes(task);
-    
-    // Videos
-    renderVideos(task);
+// === Drag and Drop Handlers ===
+function handleDragStart(e) {
+    draggedElement = this;
+    draggedIndex = parseInt(this.getAttribute('data-index'));
+    this.style.opacity = '0.5';
+    e.dataTransfer.effectAllowed = 'move';
 }
 
-function renderTaskTags(task) {
-    const container = document.getElementById('task-tags-container');
-    container.innerHTML = '';
-    
-    if (task.tags && task.tags.length > 0) {
-        task.tags.forEach(tagName => {
-            const tagObj = appData.tags.find(t => t.name === tagName);
-            if (tagObj) {
-                const pill = document.createElement('div');
-                pill.className = 'tag-pill';
-                pill.style.background = tagObj.color;
-                pill.innerHTML = `${tagObj.name} <i class="fas fa-times" onclick="removeTaskTag('${tagName}')"></i>`;
-                container.appendChild(pill);
-            }
-        });
+function handleDragOver(e) {
+    if (e.preventDefault) {
+        e.preventDefault();
     }
+    e.dataTransfer.dropEffect = 'move';
+    
+    const afterElement = getDragAfterElement(this.parentElement, e.clientY);
+    if (afterElement == null) {
+        this.parentElement.appendChild(draggedElement);
+    } else {
+        this.parentElement.insertBefore(draggedElement, afterElement);
+    }
+    
+    return false;
 }
 
-function removeTaskTag(tagName) {
-    const phase = appData.phases.find(p => p.id === currentView.phaseId);
-    const week = phase.weeks.find(w => w.id === currentView.weekId);
-    const day = week.days.find(d => d.id === currentView.dayId);
-    const task = day.tasks[currentView.taskId];
+function handleDrop(e) {
+    if (e.stopPropagation) {
+        e.stopPropagation();
+    }
     
-    task.tags = task.tags.filter(t => t !== tagName);
-    renderTaskTags(task);
-    saveDataQuietly();
-}
-
-// === Tag Management ===
-function openTagModal() {
-    const modal = document.getElementById('tag-modal');
-    const input = document.getElementById('tag-input');
-    input.value = '';
-    selectedTagColor = '#5CE38D';
+    const dropIndex = parseInt(this.getAttribute('data-index'));
     
-    // Reset color selection
-    document.querySelectorAll('.color-option').forEach(el => el.classList.remove('selected'));
-    document.querySelector('.color-option[data-color="#5CE38D"]').classList.add('selected');
-    
-    modal.style.display = 'flex';
-}
-
-function updateTagFilter() {
-    const select = document.getElementById('filter-tag');
-    select.innerHTML = '<option value="">All Tags</option>';
-    appData.tags.forEach(tag => {
-        const opt = document.createElement('option');
-        opt.value = tag.name;
-        opt.innerText = tag.name;
-        select.appendChild(opt);
-    });
-}
-
-// === Notes Management ===
-function renderNotes(task) {
-    const container = document.getElementById('notes-list-container');
-    container.innerHTML = '';
-    
-    if (!task.notes) task.notes = [];
-    
-    task.notes.forEach((note, index) => {
-        const noteDiv = document.createElement('div');
-        noteDiv.className = 'note-item';
-        noteDiv.innerHTML = `
-            <textarea class="glass-input note-textarea" placeholder="Write your note here...">${note}</textarea>
-            <div class="delete-note-btn" onclick="deleteNote(${index})">
-                <i class="fas fa-times"></i>
-            </div>
-        `;
+    if (draggedIndex !== dropIndex) {
+        const phase = appData.phases.find(p => p.id === currentView.phaseId);
+        const week = phase.weeks.find(w => w.id === currentView.weekId);
+        const day = week.days.find(d => d.id === currentView.dayId);
         
-        const textarea = noteDiv.querySelector('textarea');
-        textarea.addEventListener('input', () => {
-            task.notes[index] = textarea.value;
-            saveDataQuietly();
-        });
+        // Reorder the tasks array
+        const tasks = day.tasks;
+        const draggedTask = tasks[draggedIndex];
+        tasks.splice(draggedIndex, 1);
         
-        container.appendChild(noteDiv);
-    });
+        // Adjust drop index if dragging down
+        const newIndex = draggedIndex < dropIndex ? dropIndex - 1 : dropIndex;
+        tasks.splice(newIndex, 0, draggedTask);
+        
+        saveData();
+    }
+    
+    return false;
 }
 
-function addNote() {
-    const phase = appData.phases.find(p => p.id === currentView.phaseId);
-    const week = phase.weeks.find(w => w.id === currentView.weekId);
-    const day = week.days.find(d => d.id === currentView.dayId);
-    const task = day.tasks[currentView.taskId];
-    
-    if (!task.notes) task.notes = [];
-    task.notes.push('');
-    renderNotes(task);
-    saveDataQuietly();
+function handleDragEnd(e) {
+    this.style.opacity = '1';
+    draggedElement = null;
+    draggedIndex = null;
 }
 
-function deleteNote(index) {
-    const phase = appData.phases.find(p => p.id === currentView.phaseId);
-    const week = phase.weeks.find(w => w.id === currentView.weekId);
-    const day = week.days.find(d => d.id === currentView.dayId);
-    const task = day.tasks[currentView.taskId];
+function getDragAfterElement(container, y) {
+    const draggableElements = [...container.querySelectorAll('.task-item:not(.dragging)')];
     
-    task.notes.splice(index, 1);
-    renderNotes(task);
-    saveDataQuietly();
-}
-
-// === Videos Management ===
-function renderVideos(task) {
-    const container = document.getElementById('video-list-container');
-    container.innerHTML = '';
-    
-    if (!task.videos) task.videos = [];
-    
-    task.videos.forEach((url, index) => {
-        const videoId = extractYouTubeID(url);
-        if (videoId) {
-            const wrapper = document.createElement('div');
-            wrapper.className = 'video-wrapper';
-            wrapper.innerHTML = `
-                <iframe width="100%" height="315" src="https://www.youtube.com/embed/${videoId}" 
-                    frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                    allowfullscreen></iframe>
-                <div class="delete-video-btn" onclick="deleteVideo(${index})">
-                    <i class="fas fa-times"></i>
-                </div>
-            `;
-            container.appendChild(wrapper);
+    return draggableElements.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        
+        if (offset < 0 && offset > closest.offset) {
+            return { offset: offset, element: child };
+        } else {
+            return closest;
         }
-    });
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
 }
 
-function addVideo() {
-    const input = document.getElementById('youtube-url');
-    const url = input.value.trim();
-    if (!url) return;
-    
-    const phase = appData.phases.find(p => p.id === currentView.phaseId);
-    const week = phase.weeks.find(w => w.id === currentView.weekId);
-    const day = week.days.find(d => d.id === currentView.dayId);
-    const task = day.tasks[currentView.taskId];
-    
-    if (!task.videos) task.videos = [];
-    task.videos.push(url);
-    input.value = '';
-    renderVideos(task);
-    saveDataQuietly();
+// === Completion Check Functions ===
+function isDayComplete(day) {
+    if (!day.tasks || day.tasks.length === 0) return false;
+    return day.tasks.every(task => task.completed);
 }
 
-function deleteVideo(index) {
-    const phase = appData.phases.find(p => p.id === currentView.phaseId);
-    const week = phase.weeks.find(w => w.id === currentView.weekId);
-    const day = week.days.find(d => d.id === currentView.dayId);
-    const task = day.tasks[currentView.taskId];
-    
-    task.videos.splice(index, 1);
-    renderVideos(task);
-    saveDataQuietly();
+function isWeekComplete(week) {
+    if (!week.days || week.days.length === 0) return false;
+    return week.days.every(day => isDayComplete(day));
 }
 
-function extractYouTubeID(url) {
-    const match = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
-    return match ? match[1] : null;
+function isPhaseComplete(phase) {
+    if (!phase.weeks || phase.weeks.length === 0) return false;
+    return phase.weeks.every(week => isWeekComplete(week));
 }
 
-// === Time Tracking ===
-function updateTaskTimeDisplay(task) {
-    const timeSpent = task.timeSpent || 0;
+// === Time Tracking (Day Level) ===
+function updateDayTimeDisplay(day) {
+    const timeSpent = day.timeSpent || 0;
     const hours = Math.floor(timeSpent / 3600);
     const minutes = Math.floor((timeSpent % 3600) / 60);
-    document.getElementById('task-time-spent').innerText = `${hours}h ${minutes}m`;
+    document.getElementById('day-time-spent').innerText = `${hours}h ${minutes}m`;
 }
 
-function startTaskTimer() {
+function startDayTimer() {
     const phase = appData.phases.find(p => p.id === currentView.phaseId);
     const week = phase.weeks.find(w => w.id === currentView.weekId);
     const day = week.days.find(d => d.id === currentView.dayId);
-    const task = day.tasks[currentView.taskId];
     
-    if (timerInterval) return; // Already running
+    if (dayTimerInterval) return; // Already running
     
-    timerStartTime = Date.now();
-    timerElapsed = 0;
+    dayTimerStartTime = Date.now();
+    dayTimerElapsed = 0;
     
-    document.getElementById('start-timer-btn').classList.add('hidden');
-    document.getElementById('pause-timer-btn').classList.remove('hidden');
+    document.getElementById('start-day-timer-btn').classList.add('hidden');
+    document.getElementById('pause-day-timer-btn').classList.remove('hidden');
     
-    timerInterval = setInterval(() => {
-        timerElapsed = Math.floor((Date.now() - timerStartTime) / 1000);
-        task.timeSpent = (task.timeSpent || 0) + 1;
-        updateTaskTimeDisplay(task);
+    dayTimerInterval = setInterval(() => {
+        dayTimerElapsed = Math.floor((Date.now() - dayTimerStartTime) / 1000);
+        day.timeSpent = (day.timeSpent || 0) + 1;
+        updateDayTimeDisplay(day);
         saveDataQuietly();
     }, 1000);
 }
 
-function pauseTaskTimer() {
-    if (timerInterval) {
-        clearInterval(timerInterval);
-        timerInterval = null;
+function pauseDayTimer() {
+    if (dayTimerInterval) {
+        clearInterval(dayTimerInterval);
+        dayTimerInterval = null;
     }
     
-    document.getElementById('start-timer-btn').classList.remove('hidden');
-    document.getElementById('pause-timer-btn').classList.add('hidden');
+    document.getElementById('start-day-timer-btn').classList.remove('hidden');
+    document.getElementById('pause-day-timer-btn').classList.add('hidden');
 }
 
 // === Pomodoro Timer ===
@@ -617,9 +528,8 @@ function openPomodoroTimer() {
     const phase = appData.phases.find(p => p.id === currentView.phaseId);
     const week = phase.weeks.find(w => w.id === currentView.weekId);
     const day = week.days.find(d => d.id === currentView.dayId);
-    const task = day.tasks[currentView.taskId];
     
-    document.getElementById('timer-task-name').innerText = `Working on: ${task.text}`;
+    document.getElementById('timer-task-name').innerText = `Working on: ${day.title}`;
     document.getElementById('pomodoro-overlay').classList.remove('hidden');
     pomodoroMinutes = 25;
     pomodoroSeconds = 0;
@@ -702,11 +612,301 @@ function resetPomodoroTimer() {
     document.getElementById('timer-pause').classList.add('hidden');
 }
 
+// === Notes Management ===
+function renderNotes(day) {
+    const container = document.getElementById('notes-list-container');
+    container.innerHTML = '';
+    
+    if (!day.notes) day.notes = [];
+    
+    if (day.notes.length === 0) {
+        container.innerHTML = '<p style="opacity: 0.5; text-align: center; padding: 20px;">No notes yet. Click + to add one.</p>';
+        return;
+    }
+    
+    day.notes.forEach((note, index) => {
+        const noteDiv = document.createElement('div');
+        noteDiv.className = 'note-item';
+        noteDiv.innerHTML = `
+            <textarea class="glass-input note-textarea" placeholder="Write your note here...">${note}</textarea>
+            <div class="delete-note-btn" onclick="deleteNote(${index})">
+                <i class="fas fa-times"></i>
+            </div>
+        `;
+        
+        const textarea = noteDiv.querySelector('textarea');
+        textarea.addEventListener('input', () => {
+            day.notes[index] = textarea.value;
+            saveDataQuietly();
+        });
+        
+        container.appendChild(noteDiv);
+    });
+}
+
+function addNote() {
+    const phase = appData.phases.find(p => p.id === currentView.phaseId);
+    const week = phase.weeks.find(w => w.id === currentView.weekId);
+    const day = week.days.find(d => d.id === currentView.dayId);
+    
+    if (!day.notes) day.notes = [];
+    day.notes.push('');
+    renderNotes(day);
+    saveDataQuietly();
+}
+
+function deleteNote(index) {
+    const phase = appData.phases.find(p => p.id === currentView.phaseId);
+    const week = phase.weeks.find(w => w.id === currentView.weekId);
+    const day = week.days.find(d => d.id === currentView.dayId);
+    
+    day.notes.splice(index, 1);
+    renderNotes(day);
+    saveDataQuietly();
+}
+
+// === Videos Management ===
+function renderVideos(day) {
+    const container = document.getElementById('video-list-container');
+    container.innerHTML = '';
+    
+    if (!day.videos) day.videos = [];
+    
+    if (day.videos.length === 0) {
+        container.innerHTML = '<p style="opacity: 0.5; text-align: center; padding: 20px;">No videos yet. Add a YouTube link above.</p>';
+        return;
+    }
+    
+    day.videos.forEach((url, index) => {
+        const videoId = extractYouTubeID(url);
+        if (videoId) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'video-wrapper';
+            wrapper.innerHTML = `
+                <iframe width="100%" height="315" src="https://www.youtube.com/embed/${videoId}" 
+                    frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                    allowfullscreen></iframe>
+                <div class="delete-video-btn" onclick="deleteVideo(${index})">
+                    <i class="fas fa-times"></i>
+                </div>
+            `;
+            container.appendChild(wrapper);
+        }
+    });
+}
+
+function addVideo() {
+    const input = document.getElementById('youtube-url');
+    const url = input.value.trim();
+    if (!url) return;
+    
+    const phase = appData.phases.find(p => p.id === currentView.phaseId);
+    const week = phase.weeks.find(w => w.id === currentView.weekId);
+    const day = week.days.find(d => d.id === currentView.dayId);
+    
+    if (!day.videos) day.videos = [];
+    day.videos.push(url);
+    input.value = '';
+    renderVideos(day);
+    saveDataQuietly();
+}
+
+function deleteVideo(index) {
+    const phase = appData.phases.find(p => p.id === currentView.phaseId);
+    const week = phase.weeks.find(w => w.id === currentView.weekId);
+    const day = week.days.find(d => d.id === currentView.dayId);
+    
+    day.videos.splice(index, 1);
+    renderVideos(day);
+    saveDataQuietly();
+}
+
+function extractYouTubeID(url) {
+    const match = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
+    return match ? match[1] : null;
+}
+
+// === Files Management (Upload from Computer) ===
+function renderFiles(day) {
+    const container = document.getElementById('files-list-container');
+    container.innerHTML = '';
+    
+    if (!day.files) day.files = [];
+    
+    if (day.files.length === 0) {
+        container.innerHTML = '<p style="opacity: 0.5; text-align: center; padding: 20px;">No files yet. Click "Add Files" to upload.</p>';
+        return;
+    }
+    
+    day.files.forEach((file, index) => {
+        const fileDiv = document.createElement('div');
+        fileDiv.className = 'file-item glass-effect';
+        
+        // Determine file icon based on type
+        let icon = 'fa-file';
+        if (file.type) {
+            if (file.type.startsWith('image/')) icon = 'fa-file-image';
+            else if (file.type.startsWith('video/')) icon = 'fa-file-video';
+            else if (file.type.startsWith('audio/')) icon = 'fa-file-audio';
+            else if (file.type.includes('pdf')) icon = 'fa-file-pdf';
+            else if (file.type.includes('word') || file.type.includes('document')) icon = 'fa-file-word';
+            else if (file.type.includes('excel') || file.type.includes('sheet')) icon = 'fa-file-excel';
+            else if (file.type.includes('powerpoint') || file.type.includes('presentation')) icon = 'fa-file-powerpoint';
+            else if (file.type.includes('zip') || file.type.includes('compressed')) icon = 'fa-file-archive';
+        }
+        
+        const fileSize = file.size ? formatFileSize(file.size) : '';
+        
+        fileDiv.innerHTML = `
+            <div class="file-content" onclick="downloadFile(${index})" style="cursor: pointer;">
+                <i class="fas ${icon}"></i>
+                <div class="file-info">
+                    <span class="file-name">${file.name}</span>
+                    ${fileSize ? `<span class="file-size">${fileSize}</span>` : ''}
+                </div>
+            </div>
+            <div class="delete-file-btn" onclick="deleteFile(${index})">
+                <i class="fas fa-times"></i>
+            </div>
+        `;
+        
+        container.appendChild(fileDiv);
+    });
+}
+
+function addFiles() {
+    const input = document.getElementById('file-upload-input');
+    const files = input.files;
+    
+    if (files.length === 0) return;
+    
+    const phase = appData.phases.find(p => p.id === currentView.phaseId);
+    const week = phase.weeks.find(w => w.id === currentView.weekId);
+    const day = week.days.find(d => d.id === currentView.dayId);
+    
+    if (!day.files) day.files = [];
+    
+    // Process each file
+    Array.from(files).forEach(file => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            day.files.push({
+                name: file.name,
+                type: file.type,
+                size: file.size,
+                data: e.target.result // base64 data
+            });
+            renderFiles(day);
+            saveDataQuietly();
+        };
+        reader.readAsDataURL(file);
+    });
+    
+    // Reset input
+    input.value = '';
+}
+
+function downloadFile(index) {
+    const phase = appData.phases.find(p => p.id === currentView.phaseId);
+    const week = phase.weeks.find(w => w.id === currentView.weekId);
+    const day = week.days.find(d => d.id === currentView.dayId);
+    
+    const file = day.files[index];
+    
+    // Create download link
+    const a = document.createElement('a');
+    a.href = file.data;
+    a.download = file.name;
+    a.click();
+}
+
+function deleteFile(index) {
+    const phase = appData.phases.find(p => p.id === currentView.phaseId);
+    const week = phase.weeks.find(w => w.id === currentView.weekId);
+    const day = week.days.find(d => d.id === currentView.dayId);
+    
+    day.files.splice(index, 1);
+    renderFiles(day);
+    saveDataQuietly();
+}
+
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+}
+
+// === Links Management (Website URLs) ===
+function renderLinks(day) {
+    const container = document.getElementById('links-list-container');
+    container.innerHTML = '';
+    
+    if (!day.links) day.links = [];
+    
+    if (day.links.length === 0) {
+        container.innerHTML = '<p style="opacity: 0.5; text-align: center; padding: 20px;">No links yet. Add a website link above.</p>';
+        return;
+    }
+    
+    day.links.forEach((link, index) => {
+        const linkDiv = document.createElement('div');
+        linkDiv.className = 'link-item glass-effect';
+        
+        linkDiv.innerHTML = `
+            <div class="link-content" onclick="window.open('${link}', '_blank')" style="cursor: pointer;">
+                <i class="fas fa-link"></i>
+                <span>${link}</span>
+            </div>
+            <div class="delete-link-btn" onclick="deleteLink(${index})">
+                <i class="fas fa-times"></i>
+            </div>
+        `;
+        
+        container.appendChild(linkDiv);
+    });
+}
+
+function addLink() {
+    const input = document.getElementById('link-url');
+    const url = input.value.trim();
+    if (!url) return;
+    
+    // Validate URL
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        alert('Please enter a valid URL starting with http:// or https://');
+        return;
+    }
+    
+    const phase = appData.phases.find(p => p.id === currentView.phaseId);
+    const week = phase.weeks.find(w => w.id === currentView.weekId);
+    const day = week.days.find(d => d.id === currentView.dayId);
+    
+    if (!day.links) day.links = [];
+    day.links.push(url);
+    input.value = '';
+    renderLinks(day);
+    saveDataQuietly();
+}
+
+function deleteLink(index) {
+    const phase = appData.phases.find(p => p.id === currentView.phaseId);
+    const week = phase.weeks.find(w => w.id === currentView.weekId);
+    const day = week.days.find(d => d.id === currentView.dayId);
+    
+    day.links.splice(index, 1);
+    renderLinks(day);
+    saveDataQuietly();
+}
+
 // === Analytics ===
 function renderAnalytics() {
     document.getElementById('analytics-dashboard').style.display = 'block';
     document.getElementById('home-calendar-container').style.display = 'none';
     document.getElementById('main-list-section').style.display = 'none';
+    document.getElementById('day-actions-section').style.display = 'none';
+    document.getElementById('materials-page').style.display = 'none';
     
     document.getElementById('page-title').innerText = 'Analytics';
     document.getElementById('page-subtitle').innerText = 'Performance Overview';
@@ -768,14 +968,12 @@ function renderTimeChart(stats) {
     // Destroy previous chart
     if (timeChart) timeChart.destroy();
     
-    // Calculate time spent per phase
+    // Calculate time spent per phase (now from day level)
     const phaseData = appData.phases.map(phase => {
         let totalTime = 0;
         phase.weeks?.forEach(week => {
             week.days?.forEach(day => {
-                day.tasks?.forEach(task => {
-                    totalTime += task.timeSpent || 0;
-                });
+                totalTime += day.timeSpent || 0;
             });
         });
         return {
@@ -858,84 +1056,6 @@ function renderProgressChart() {
     });
 }
 
-// === Archive ===
-function renderArchive() {
-    document.getElementById('archive-view').style.display = 'block';
-    document.getElementById('home-calendar-container').style.display = 'none';
-    document.getElementById('main-list-section').style.display = 'none';
-    
-    document.getElementById('page-title').innerText = 'Archive';
-    document.getElementById('page-subtitle').innerText = 'Completed Items';
-    document.getElementById('sidebar-title').innerText = 'Archives';
-    document.getElementById('nav-header').innerHTML = '<button class="back-btn" onclick="navigateTo(\'home\')"><i class="fas fa-arrow-left"></i> Home</button>';
-    
-    const container = document.getElementById('archive-list');
-    container.innerHTML = '';
-    
-    if (!appData.archive || appData.archive.length === 0) {
-        container.innerHTML = '<p style="opacity: 0.5; text-align: center; padding: 40px;">No archived items</p>';
-        return;
-    }
-    
-    appData.archive.forEach((item, index) => {
-        const div = document.createElement('div');
-        div.className = 'archive-item';
-        div.innerHTML = `
-            <h4>${item.title}</h4>
-            <p>${item.type} - Archived on ${new Date(item.date).toLocaleDateString()}</p>
-        `;
-        container.appendChild(div);
-    });
-}
-
-function archiveItem(type, id, title) {
-    if (!appData.archive) appData.archive = [];
-    appData.archive.push({
-        type: type,
-        title: title,
-        date: new Date().toISOString()
-    });
-    saveDataQuietly();
-}
-
-function clearArchive() {
-    if (confirm('Clear all archived items? This cannot be undone.')) {
-        appData.archive = [];
-        saveData();
-        renderArchive();
-    }
-}
-
-// === Recurring Tasks ===
-function checkRecurringTasks() {
-    const now = new Date();
-    
-    appData.phases.forEach(phase => {
-        phase.weeks?.forEach(week => {
-            week.days?.forEach(day => {
-                day.tasks?.forEach(task => {
-                    if (task.recurring && task.completed && task.lastCompleted) {
-                        const lastCompleted = new Date(task.lastCompleted);
-                        let shouldReset = false;
-                        
-                        if (task.recurring === 'daily') {
-                            shouldReset = (now - lastCompleted) > 24 * 60 * 60 * 1000;
-                        } else if (task.recurring === 'weekly') {
-                            shouldReset = (now - lastCompleted) > 7 * 24 * 60 * 60 * 1000;
-                        } else if (task.recurring === 'monthly') {
-                            shouldReset = (now - lastCompleted) > 30 * 24 * 60 * 60 * 1000;
-                        }
-                        
-                        if (shouldReset) {
-                            task.completed = false;
-                        }
-                    }
-                });
-            });
-        });
-    });
-}
-
 // === Calendar ===
 function setupCalendarControls() {
     document.getElementById('prev-month').onclick = () => {
@@ -979,7 +1099,6 @@ function renderCalendar() {
     }
     
     const assignedDates = getAssignedDatesMap();
-    const today = new Date().toISOString().split('T')[0];
     
     for (let day = 1; day <= daysInMonth; day++) {
         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
@@ -995,14 +1114,6 @@ function renderCalendar() {
                 currentView.weekId = data.weekId;
                 navigateTo('day', data.dayId);
             };
-        }
-        
-        // Check for overdue tasks
-        if (dateStr < today) {
-            const hasOverdue = checkOverdueTasks(dateStr);
-            if (hasOverdue) {
-                dayDiv.classList.add('overdue');
-            }
         }
         
         grid.appendChild(dayDiv);
@@ -1021,31 +1132,18 @@ function getAssignedDatesMap() {
     return map;
 }
 
-function checkOverdueTasks(dateStr) {
-    let hasOverdue = false;
-    appData.phases.forEach(p => {
-        p.weeks?.forEach(w => {
-            w.days?.forEach(d => {
-                d.tasks?.forEach(t => {
-                    if (t.dueDate === dateStr && !t.completed) {
-                        hasOverdue = true;
-                    }
-                });
-            });
-        });
-    });
-    return hasOverdue;
-}
-
 // === Core CRUD Operations ===
-function createSidebarItem(text, id, clickHandler, type) {
+function createSidebarItem(text, id, clickHandler, type, isComplete) {
     const div = document.createElement('div');
     div.className = 'nav-item';
+    
+    // Apply strikethrough if complete
+    const textStyle = isComplete ? 'style="text-decoration: line-through; opacity: 0.7;"' : '';
+    
     div.innerHTML = `
-        <span class="item-text">${text}</span>
+        <span class="item-text" ${textStyle}>${text}</span>
         <div class="action-icons">
             <i class="fas fa-pencil-alt" data-action="edit"></i>
-            <i class="fas fa-archive" data-action="archive"></i>
             <i class="fas fa-trash" data-action="delete"></i>
         </div>
     `;
@@ -1054,16 +1152,9 @@ function createSidebarItem(text, id, clickHandler, type) {
         e.stopPropagation();
         openModal('Edit Title', text, (newText) => { if (newText) updateItemTitle(type, id, newText); }, 'text');
     });
-    div.querySelector('.fa-archive').addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (confirm('Archive this item?')) {
-            archiveItem(type, id, text);
-            deleteItem(type, id);
-        }
-    });
     div.querySelector('.fa-trash').addEventListener('click', (e) => {
         e.stopPropagation();
-        if (confirm('Delete this? (Use Archive to preserve it)')) deleteItem(type, id);
+        if (confirm('Delete this item?')) deleteItem(type, id);
     });
     return div;
 }
@@ -1112,7 +1203,17 @@ function addItem() {
             if (val) {
                 const p = appData.phases.find(x => x.id === currentView.phaseId);
                 const w = p.weeks.find(x => x.id === currentView.weekId);
-                w.days.push({ id, title: val, assignedDate: '', tasks: [] });
+                w.days.push({ 
+                    id, 
+                    title: val, 
+                    assignedDate: '', 
+                    tasks: [],
+                    timeSpent: 0,
+                    notes: [],
+                    videos: [],
+                    files: [],
+                    links: []
+                });
                 saveData();
             }
         }, 'text');
@@ -1130,15 +1231,7 @@ function addListItem() {
         } else if (currentView.type === 'day') {
             p.weeks.find(x => x.id === currentView.weekId).days.find(x => x.id === currentView.dayId).tasks.push({
                 text: val,
-                completed: false,
-                notes: [],
-                videos: [],
-                priority: 'medium',
-                tags: [],
-                timeSpent: 0,
-                dueDate: '',
-                recurring: '',
-                lastCompleted: ''
+                completed: false
             });
         }
         saveData();
@@ -1257,9 +1350,6 @@ function setupEventListeners() {
     // Analytics
     document.getElementById('analytics-btn').onclick = () => navigateTo('analytics');
     
-    // Archive
-    document.getElementById('archive-btn').onclick = () => navigateTo('archive');
-    
     // Export/Import
     document.getElementById('export-btn').onclick = () => {
         const a = document.createElement('a');
@@ -1282,68 +1372,19 @@ function setupEventListeners() {
         reader.readAsText(e.target.files[0]);
     };
     
-    // Task details - Notes & Videos
+    // Materials - Notes, Videos, Files, Links
     document.getElementById('add-note-btn').onclick = addNote;
     document.getElementById('add-video-btn').onclick = addVideo;
-    
-    // Tag modal
-    document.getElementById('tag-save').onclick = () => {
-        const tagName = document.getElementById('tag-input').value.trim();
-        if (!tagName) return;
-        
-        // Add to global tags if not exists
-        if (!appData.tags.find(t => t.name === tagName)) {
-            appData.tags.push({ name: tagName, color: selectedTagColor });
-            updateTagFilter();
-        }
-        
-        // Add to current task
-        const phase = appData.phases.find(p => p.id === currentView.phaseId);
-        const week = phase.weeks.find(w => w.id === currentView.weekId);
-        const day = week.days.find(d => d.id === currentView.dayId);
-        const task = day.tasks[currentView.taskId];
-        
-        if (!task.tags.includes(tagName)) {
-            task.tags.push(tagName);
-        }
-        
-        renderTaskTags(task);
-        saveDataQuietly();
-        document.getElementById('tag-modal').style.display = 'none';
+    document.getElementById('add-file-btn').onclick = () => {
+        document.getElementById('file-upload-input').click();
     };
-    
-    document.getElementById('tag-cancel').onclick = () => {
-        document.getElementById('tag-modal').style.display = 'none';
-    };
-    
-    // Color picker for tags
-    document.querySelectorAll('.color-option').forEach(el => {
-        el.onclick = () => {
-            selectedTagColor = el.getAttribute('data-color');
-            document.querySelectorAll('.color-option').forEach(e => e.classList.remove('selected'));
-            el.classList.add('selected');
-        };
-    });
+    document.getElementById('file-upload-input').onchange = addFiles;
+    document.getElementById('add-link-btn').onclick = addLink;
     
     // Search
     document.getElementById('global-search').addEventListener('input', (e) => {
         searchQuery = e.target.value;
-        if (currentView.type !== 'home' && currentView.type !== 'analytics' && currentView.type !== 'archive' && currentView.type !== 'task') {
-            renderView();
-        }
-    });
-    
-    // Filters
-    document.getElementById('filter-priority').addEventListener('change', (e) => {
-        filterPriority = e.target.value;
-        if (currentView.type === 'day') {
-            renderView();
-        }
-    });
-    
-    document.getElementById('filter-tag').addEventListener('change', (e) => {
-        filterTag = e.target.value;
-        if (currentView.type === 'day') {
+        if (currentView.type !== 'home' && currentView.type !== 'analytics' && currentView.type !== 'materials') {
             renderView();
         }
     });
@@ -1360,7 +1401,7 @@ function setupKeyboardShortcuts() {
         // Ctrl+N - New item
         if (e.ctrlKey && e.key === 'n') {
             e.preventDefault();
-            if (currentView.type !== 'analytics' && currentView.type !== 'archive') {
+            if (currentView.type !== 'analytics' && currentView.type !== 'materials') {
                 if (currentView.type === 'home' || currentView.type === 'phase' || currentView.type === 'week') {
                     addItem();
                 } else if (currentView.type === 'day') {
@@ -1406,7 +1447,6 @@ function setupKeyboardShortcuts() {
         if (e.key === 'Escape') {
             document.getElementById('input-modal').style.display = 'none';
             document.getElementById('settings-modal').style.display = 'none';
-            document.getElementById('tag-modal').style.display = 'none';
             document.getElementById('shortcuts-panel').classList.add('hidden');
             closePomodoroTimer();
         }
@@ -1415,14 +1455,16 @@ function setupKeyboardShortcuts() {
 
 // === Initialize on load ===
 window.navigateTo = navigateTo;
-window.openTagModal = openTagModal;
-window.removeTaskTag = removeTaskTag;
+window.navigateToMaterials = navigateToMaterials;
+window.switchMaterialsTab = switchMaterialsTab;
 window.deleteNote = deleteNote;
 window.deleteVideo = deleteVideo;
-window.startTaskTimer = startTaskTimer;
-window.pauseTaskTimer = pauseTaskTimer;
+window.deleteFile = deleteFile;
+window.downloadFile = downloadFile;
+window.deleteLink = deleteLink;
+window.startDayTimer = startDayTimer;
+window.pauseDayTimer = pauseDayTimer;
 window.openPomodoroTimer = openPomodoroTimer;
 window.closePomodoroTimer = closePomodoroTimer;
 window.setPomodoroTime = setPomodoroTime;
 window.setTheme = setTheme;
-window.clearArchive = clearArchive;

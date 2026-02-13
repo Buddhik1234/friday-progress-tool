@@ -6,9 +6,6 @@
     --text-light: #FFFFFF;
     --text-dark: #202020;
     --font-family: 'Poppins', sans-serif;
-    --priority-high: #FF6B6B;
-    --priority-medium: #FFE66D;
-    --priority-low: #4ECDC4;
 }
 
 /* Theme Variants */
@@ -106,29 +103,6 @@ body {
     transform: translateY(-50%);
     color: #888;
     pointer-events: none;
-}
-
-.filter-container {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 15px;
-}
-
-.filter-select {
-    flex: 1;
-    padding: 8px;
-    background: rgba(255,255,255,0.05);
-    border: 1px solid #555;
-    border-radius: 6px;
-    color: var(--text-light);
-    font-family: var(--font-family);
-    font-size: 0.85rem;
-    cursor: pointer;
-}
-
-.filter-select:focus {
-    outline: none;
-    border-color: var(--main-green);
 }
 
 .sidebar-content {
@@ -363,37 +337,6 @@ body {
     opacity: 0.7;
 }
 
-/* Archive View */
-.archive-view {
-    padding: 20px;
-    max-height: 70vh;
-    overflow-y: auto;
-}
-
-.archive-list {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-    margin-top: 20px;
-}
-
-.archive-item {
-    background: rgba(255,255,255,0.05);
-    padding: 15px;
-    border-radius: 10px;
-    border-left: 4px solid var(--main-green);
-}
-
-.archive-item h4 {
-    margin-bottom: 5px;
-    color: var(--main-green);
-}
-
-.archive-item p {
-    font-size: 0.9rem;
-    opacity: 0.7;
-}
-
 /* Task / Goals List */
 .list-header {
     display: flex;
@@ -424,7 +367,7 @@ body {
 .task-item, .goal-item {
     display: flex;
     align-items: flex-start;
-    gap: 15px;
+    gap: 10px;
     padding: 10px;
     border-radius: 8px;
     transition: background 0.2s;
@@ -435,34 +378,26 @@ body {
     background: rgba(255,255,255,0.05);
 }
 
-/* Priority Indicators */
-.task-item[data-priority="high"] {
-    border-left: 4px solid var(--priority-high);
-}
-
-.task-item[data-priority="medium"] {
-    border-left: 4px solid var(--priority-medium);
-}
-
-.task-item[data-priority="low"] {
-    border-left: 4px solid var(--priority-low);
-}
-
-/* Task Tags */
-.task-tags {
+/* Drag Handle */
+.drag-handle {
+    color: #888;
+    cursor: grab;
+    padding: 5px;
+    font-size: 1rem;
     display: flex;
-    gap: 5px;
-    margin-top: 5px;
-    flex-wrap: wrap;
+    align-items: center;
 }
 
-.tag {
-    font-size: 0.7rem;
-    padding: 3px 8px;
-    border-radius: 12px;
-    background: var(--main-green);
-    color: var(--text-dark);
-    font-weight: 500;
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+.drag-handle:hover {
+    color: var(--main-green);
+}
+
+.task-item[draggable="true"] {
+    cursor: move;
 }
 
 .checkbox-custom {
@@ -495,6 +430,91 @@ body {
 
 .task-item.completed .checkbox-custom i {
     display: block;
+}
+
+/* Day Actions Section */
+.day-actions-section {
+    margin-top: 20px;
+}
+
+.materials-button-container {
+    margin-top: 20px;
+    text-align: center;
+}
+
+.btn-materials {
+    background-color: var(--btn-green);
+    color: var(--text-light);
+    padding: 15px 30px;
+    border-radius: 12px;
+    font-weight: 600;
+    font-size: 1.1rem;
+    border: none;
+    cursor: pointer;
+    transition: 0.3s;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-materials:hover {
+    filter: brightness(1.2);
+    transform: translateY(-2px);
+}
+
+/* Materials Page */
+.materials-page {
+    overflow-y: auto;
+    padding-right: 15px;
+    max-height: 60vh;
+}
+
+.materials-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 30px;
+    border-bottom: 2px solid #555;
+    padding-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+.materials-tab {
+    background: none;
+    border: none;
+    color: #888;
+    padding: 10px 20px;
+    cursor: pointer;
+    font-family: var(--font-family);
+    font-size: 1rem;
+    font-weight: 500;
+    transition: 0.2s;
+    border-bottom: 3px solid transparent;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.materials-tab:hover {
+    color: var(--text-light);
+}
+
+.materials-tab.active {
+    color: var(--main-green);
+    border-bottom-color: var(--main-green);
+}
+
+.materials-tab-content {
+    display: none;
+}
+
+.materials-tab-content.active {
+    display: block;
+}
+
+.materials-tab-content h3 {
+    margin-bottom: 15px;
+    font-size: 1.2rem;
+    color: var(--main-green);
 }
 
 /* Pomodoro Timer Overlay */
@@ -688,85 +708,6 @@ button {
     font-size: 0.85rem;
 }
 
-/* Task Detail Customizations */
-.scrollable-detail {
-    overflow-y: auto;
-    padding-right: 15px;
-    max-height: 60vh;
-    padding-bottom: 20px;
-}
-
-.task-metadata {
-    padding: 20px;
-    border-radius: 12px;
-    margin-bottom: 25px;
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 15px;
-}
-
-.metadata-item {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
-
-.metadata-item label {
-    font-size: 0.85rem;
-    font-weight: 500;
-    opacity: 0.8;
-}
-
-.priority-select {
-    padding: 8px 12px;
-    background: rgba(255,255,255,0.05);
-    border: 1px solid #555;
-    border-radius: 6px;
-    color: var(--text-light);
-    font-family: var(--font-family);
-    cursor: pointer;
-}
-
-.priority-select option[value="high"] {
-    color: var(--priority-high);
-}
-
-.priority-select option[value="medium"] {
-    color: var(--priority-medium);
-}
-
-.priority-select option[value="low"] {
-    color: var(--priority-low);
-}
-
-.tags-container {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    min-height: 30px;
-    align-items: center;
-}
-
-.tag-pill {
-    padding: 5px 12px;
-    border-radius: 15px;
-    font-size: 0.8rem;
-    font-weight: 500;
-    color: var(--text-dark);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.tag-pill i {
-    cursor: pointer;
-    opacity: 0.7;
-}
-
-.tag-pill i:hover {
-    opacity: 1;
-}
-
 /* Time Tracking */
 .time-tracker {
     padding: 20px;
@@ -895,22 +836,182 @@ button {
     box-shadow: 0 2px 5px rgba(0,0,0,0.5);
 }
 
-/* Footer Quote */
-.quote-footer {
-    position: absolute;
-    bottom: 10px;
-    right: 50px;
-    text-align: right;
-    width: 40%;
-    pointer-events: none;
+/* Files Styles */
+.file-input-wrapper {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
 }
 
-.quote-footer p {
-    font-size: 1.2rem;
+.files-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.file-item {
+    padding: 15px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    transition: 0.2s;
+}
+
+.file-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.file-content {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex: 1;
+    overflow: hidden;
+}
+
+.file-content i {
+    color: var(--main-green);
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.file-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    overflow: hidden;
+}
+
+.file-name {
     font-weight: 500;
-    letter-spacing: 5px;
-    line-height: 1.5;
-    opacity: 0.7;
+    color: var(--text-light);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.file-size {
+    font-size: 0.8rem;
+    color: #888;
+}
+
+/* Clickable file links */
+.file-content[onclick] {
+    cursor: pointer;
+}
+
+.file-content[onclick]:hover .file-name {
+    color: var(--main-green);
+}
+
+.file-content[onclick]:hover i {
+    transform: scale(1.1);
+}
+
+.delete-file-btn {
+    color: #c0392b;
+    background: rgba(0,0,0,0.3);
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: 0.2s;
+    flex-shrink: 0;
+}
+
+.delete-file-btn:hover {
+    opacity: 1;
+    background: #c0392b;
+    color: white;
+}
+
+/* Links Styles */
+.link-input-wrapper {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.links-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.link-item {
+    padding: 15px;
+    border-radius: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+    transition: 0.2s;
+}
+
+.link-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.link-content {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex: 1;
+    overflow: hidden;
+}
+
+.link-content i {
+    color: var(--main-green);
+    font-size: 1.3rem;
+    flex-shrink: 0;
+}
+
+.link-content span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-light);
+}
+
+/* Clickable links */
+.link-content[onclick] {
+    cursor: pointer;
+}
+
+.link-content[onclick]:hover span {
+    color: var(--main-green);
+    text-decoration: underline;
+}
+
+.link-content[onclick]:hover i {
+    transform: scale(1.1);
+}
+
+.delete-link-btn {
+    color: #c0392b;
+    background: rgba(0,0,0,0.3);
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: 0.2s;
+    flex-shrink: 0;
+}
+
+.delete-link-btn:hover {
+    opacity: 1;
+    background: #c0392b;
+    color: white;
 }
 
 /* Glassmorphism Modal */
@@ -1013,34 +1114,8 @@ button {
     background: rgba(92, 227, 141, 0.1);
 }
 
-/* Tag Modal Color Picker */
-.color-picker {
-    display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 10px;
-    margin: 20px 0;
-}
-
-.color-option {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    cursor: pointer;
-    border: 3px solid transparent;
-    transition: 0.2s;
-}
-
-.color-option:hover {
-    transform: scale(1.1);
-}
-
-.color-option.selected {
-    border-color: var(--text-light);
-    transform: scale(1.15);
-}
-
 /* Input Styles within Modal */
-#modal-input, #modal-date-input, #tag-input {
+#modal-input, #modal-date-input {
     width: 100%;
     padding: 10px;
     margin-top: 15px;
@@ -1133,12 +1208,6 @@ button {
     transform: scale(1.05);
 }
 
-.calendar-day.overdue {
-    background-color: rgba(255, 107, 107, 0.2);
-    border-color: var(--priority-high);
-    color: var(--priority-high);
-}
-
 /* Scrollbar Customization */
 ::-webkit-scrollbar {
     width: 8px;
@@ -1180,10 +1249,6 @@ button {
     .analytics-grid {
         grid-template-columns: repeat(2, 1fr);
     }
-    
-    .task-metadata {
-        grid-template-columns: 1fr;
-    }
 }
 
 @media (max-width: 768px) {
@@ -1208,5 +1273,9 @@ button {
     .progress-block {
         width: 100%;
         margin-top: 20px;
+    }
+    
+    .materials-tabs {
+        overflow-x: auto;
     }
 }
